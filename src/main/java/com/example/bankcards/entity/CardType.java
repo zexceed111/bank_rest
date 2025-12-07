@@ -5,3 +5,4 @@ public enum CardType {
     CREDIT,
     PREPAID
 }
+

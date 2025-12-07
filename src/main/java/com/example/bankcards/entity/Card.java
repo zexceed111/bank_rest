@@ -2,7 +2,6 @@ package com.example.bankcards.entity;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,15 +21,13 @@ public class Card {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
-    private long id;
+    private Long id;
 
-    @Size(min = 12, max = 12)
-    @Column(name = "card_number", unique = true, nullable = false)
+    @Column(name = "card_number", unique = true, nullable = false, length = 500)
     private String cardNumber;
 
-    @Size(min = 12, max = 12)
     @NotNull
-    @Column(name = "masked_card")
+    @Column(name = "masked_card", length = 19, nullable = false)
     private String maskedCard;
 
     @NotNull
@@ -47,10 +44,10 @@ public class Card {
     @Column(nullable = false)
     private CardStatus status = CardStatus.ACTIVE;
 
-    @Column(name = "ccv", nullable = false)
+    @Column(name = "ccv", nullable = false, length = 500)
     private String ccv;
 
-    @Column(name = "pin_code", nullable = false)
+    @Column(name = "pin_code", nullable = false, length = 500)
     private String pinCode;
 
     @Column(name = "created_at")
@@ -59,8 +56,8 @@ public class Card {
     @Column(name = "update_at")
     private LocalDateTime updateAt;
 
-    @OneToMany(fetch = FetchType.LAZY)
-    @Column(name = "user_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
     @Column(name = "is_default")
@@ -72,23 +69,15 @@ public class Card {
 
     @PrePersist
     protected void onCreate(){
-        createdAt = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
         updateAt = LocalDateTime.now();
-        genarateMaskNumber();
     }
 
-    @PrePersist
+    @PreUpdate
     protected void onUpdate(){
         updateAt = LocalDateTime.now();
-        if(maskedCard == null){
-            genarateMaskNumber();
-        }
-    }
-
-    private void genarateMaskNumber(){
-        if (cardNumber != null && cardNumber.length() >= 4){
-            this.cardNumber = "**** **** ****" + cardNumber.substring(cardNumber.length() - 4);
-        }
     }
 
     public boolean isExpired(){
