@@ -1,1 +1,550 @@
-# Здесь будет OpenAPI описание всех доступных эндпоинтов и моделей данных.
+openapi: 3.0.3
+info:
+  title: Bank Cards REST API
+  description: REST API для управления банковскими картами
+  version: 1.0.0
+  contact:
+    name: Bank API Support
+    email: support@bank.com
+
+servers:
+  - url: http://localhost:8080
+    description: Локальный сервер разработки
+
+tags:
+  - name: Authentication
+    description: API для аутентификации
+  - name: Cards
+    description: API для управления картами
+  - name: Transfers
+    description: API для переводов между картами
+  - name: Admin
+    description: API для администратора
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT токен авторизации
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          example: admin
+        password:
+          type: string
+          format: password
+          example: admin123
+
+    JwtResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        type:
+          type: string
+          example: Bearer
+        username:
+          type: string
+        role:
+          type: string
+
+    CardCreateRequest:
+      type: object
+      required:
+        - cardHolderName
+        - expiryDate
+      properties:
+        cardHolderName:
+          type: string
+          example: "IVAN IVANOV"
+        expiryDate:
+          type: string
+          format: date
+          example: "2025-12-31"
+        cardType:
+          type: string
+          enum: [DEBIT, CREDIT, PREPAID]
+          default: DEBIT
+
+    CardResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        maskedCard:
+          type: string
+          example: "**** **** **** 1234"
+        cardHolderName:
+          type: string
+        balance:
+          type: number
+          format: decimal
+        expiryDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [ACTIVE, BLOCKED, EXPIRED]
+        cardType:
+          type: string
+        isDefault:
+          type: boolean
+
+    TransferRequest:
+      type: object
+      required:
+        - fromCardId
+        - toCardId
+        - amount
+      properties:
+        fromCardId:
+          type: integer
+        toCardId:
+          type: integer
+        amount:
+          type: number
+          format: decimal
+          minimum: 0.01
+
+    TransferResponse:
+      type: object
+      properties:
+        transferId:
+          type: integer
+        fromCardId:
+          type: integer
+        fromCardMasked:
+          type: string
+        toCardId:
+          type: integer
+        toCardMasked:
+          type: string
+        amount:
+          type: number
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: string
+
+    UserCreateRequest:
+      type: object
+      required:
+        - firstName
+        - lastName
+        - phoneNumber
+        - username
+        - password
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phoneNumber:
+          type: string
+          pattern: '^\d{11}$'
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [ADMIN, USER]
+          default: USER
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phoneNumber:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    PageResponse:
+      type: object
+      properties:
+        content:
+          type: array
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+        last:
+          type: boolean
+
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+paths:
+  /api/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Вход в систему
+      description: Аутентификация пользователя и получение JWT токена
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Успешная аутентификация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JwtResponse'
+        '401':
+          description: Неверные учетные данные
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/cards:
+    post:
+      tags:
+        - Cards
+      summary: Создать карту
+      description: Создание новой карты для текущего пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CardCreateRequest'
+      responses:
+        '201':
+          description: Карта успешно создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardResponse'
+        '400':
+          description: Ошибка валидации
+        '401':
+          description: Не авторизован
+
+    get:
+      tags:
+        - Cards
+      summary: Получить список карт
+      description: Получение списка карт текущего пользователя с пагинацией и фильтрацией
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [ACTIVE, BLOCKED, EXPIRED]
+      responses:
+        '200':
+          description: Список карт
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageResponse'
+
+  /api/cards/{id}:
+    get:
+      tags:
+        - Cards
+      summary: Получить карту по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Информация о карте
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardResponse'
+        '404':
+          description: Карта не найдена
+
+  /api/cards/{id}/block:
+    post:
+      tags:
+        - Cards
+      summary: Заблокировать карту
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Карта заблокирована
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardResponse'
+
+  /api/cards/{id}/activate:
+    post:
+      tags:
+        - Cards
+      summary: Активировать карту
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Карта активирована
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardResponse'
+
+  /api/transfers:
+    post:
+      tags:
+        - Transfers
+      summary: Перевод между своими картами
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferRequest'
+      responses:
+        '201':
+          description: Перевод выполнен успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferResponse'
+        '400':
+          description: Ошибка при выполнении перевода
+
+  /api/admin/users:
+    post:
+      tags:
+        - Admin
+      summary: Создать пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+      responses:
+        '201':
+          description: Пользователь создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+
+    get:
+      tags:
+        - Admin
+      summary: Получить всех пользователей
+      responses:
+        '200':
+          description: Список пользователей
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserResponse'
+
+  /api/admin/users/{id}:
+    get:
+      tags:
+        - Admin
+      summary: Получить пользователя по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Информация о пользователе
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+
+    delete:
+      tags:
+        - Admin
+      summary: Удалить пользователя
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Пользователь удален
+
+  /api/admin/cards:
+    post:
+      tags:
+        - Admin
+      summary: Создать карту для пользователя
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CardCreateRequest'
+      responses:
+        '201':
+          description: Карта создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardResponse'
+
+    get:
+      tags:
+        - Admin
+      summary: Получить все карты
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [ACTIVE, BLOCKED, EXPIRED]
+      responses:
+        '200':
+          description: Список всех карт
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageResponse'
+
+  /api/admin/cards/{id}/block:
+    post:
+      tags:
+        - Admin
+      summary: Заблокировать карту
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Карта заблокирована
+
+  /api/admin/cards/{id}/activate:
+    post:
+      tags:
+        - Admin
+      summary: Активировать карту
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Карта активирована
+
+  /api/admin/cards/{id}:
+    delete:
+      tags:
+        - Admin
+      summary: Удалить карту
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Карта удалена
